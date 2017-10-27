@@ -5,12 +5,16 @@ from skimage import transform
 from pylab import plt
 from PIL import Image
 
-def show_paf(img,paf,stride = 5,img_size=384):
+def show_paf(img,paf,stride = 5,img_size=384,thres=0.1):
     """
     @param img: ndarry, HxWx3
-    @param paf: ndarry, HxwX3
+    @param paf: ndarry, HxWxN
     """
     paf = transform.rescale(paf,img.shape[0]/paf.shape[0])
+    h,w,n = paf.shape
+    mask  = (paf**2).reshape(h,w,n/2,2).sum(axis=3).sum(axis=2)<thres
+    paf[mask] = 0
+    
     X,Y = np.meshgrid(np.arange(0,img_size),np.arange(0,img_size))
     
     plt.imshow(transform.rescale(img,(1)),alpha=0.5)

@@ -145,7 +145,7 @@ class FastItem(object):
         mask = np.zeros([h_,w_,2])
 
         length = np.linalg.norm(center1-center2)
-        limb_vec_unit = (center2-center1)/(length+0.001)
+        limb_vec_unit = (center2-center1)/(length+1e-100)
         limb_perp_unit = np.array([-limb_vec_unit[1],limb_vec_unit[0]])
         width = int(length*ratio/2)+1
         # if width>1:print width
