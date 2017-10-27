@@ -53,8 +53,8 @@ class FastItem(object):
 
         key_annos = self.anno['keypoint_annotations']
         for human,key_anno in key_annos.items():
-            coord2 = [int(_/ratio) for _ in key_anno[::3]]
-            coord1 = [int(_/ratio) for _ in  key_anno[1::3]]
+            coord2 = [_/(0.+ratio) for _ in key_anno[::3]]
+            coord1 = [_/(0.+ratio) for _ in  key_anno[1::3]]
             stat_ = key_anno[2::3]
             key_annos[human] = zip(coord1,coord2,stat_)
     
@@ -159,12 +159,18 @@ class FastItem(object):
         # 不要让他超出边界
         for _c in coords:
             if _c[0]<0:_c[0]=0
-            if _c[0]>h_-2:_c[0]=h_-2
+            if _c[0]>h_-2:_c[0]=h_-1
             if _c[1]<0:_c[1]=0
-            if _c[1]>w_-2:_c[1]=w_-2
+            if _c[1]>w_-2:_c[1]=w_-1
         x,y = coords[:,0],coords[:,1]
-        rr, cc = draw.polygon(x,y)
-        mask[rr,cc] = limb_vec_unit[::-1] # x和y是相反的
+        
+        x,y = np.array(x).round().astype(np.int32),np.array(y).round().astype(np.int32)
+        center1,center2 = np.round(center1).astype(np.int32),np.round(center2).astype(np.int32)
+        rr,cc = draw.line(center1[0],center1[1],center2[0],center2[1])
+        mask[rr,cc] = limb_vec_unit[::-1]#[np.newaxis, :]*val[:,np.newaxis]
+        
+  #      rr, cc = draw.polygon(x,y)
+#    mask[rr,cc] = limb_vec_unit[::-1] # x和y是相反的
         return mask
     
     def resize(self,img,size,mode='reflect'):
