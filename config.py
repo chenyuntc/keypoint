@@ -20,11 +20,18 @@ class Config:
     lr2 = 1e-3
     max_epoch = 100
     model_path = None
-    
+    ref = '/mnt/6/ai_challenger_keypoint_validation_20170911/keypoint_validation_annotations_20170911.json'
+    submit = 'result/val_result.json'
     plot_every = 10
     save_every = 3000
     decay_every = 1500
-
+    stride = 8
+    boxsize = 384
+    thre2 = 0.05
+    thre1 = 0.1
+    scale_search=[1.0]
+    val_result_dir = '/home/x/dcsb/KeyPoint/result/'
+    val_dir = '/mnt/6/ai_challenger_keypoint_validation_20170911/keypoint_validation_images_20170911/'
     img_root = '/data_ssd/ai_challenger/ai_challenger_keypoint_train_20170909/keypoint_train_images_20170902/'
 #    img_root = '/mnt/7/ai_challenger_keypoint_train_20170909/keypoint_train_images_20170902/'
     anno_path = '/data_ssd/ai_challenger/ai_challenger_keypoint_train_20170909/train.pth'

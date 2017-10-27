@@ -62,8 +62,8 @@ class KeypointModel(BasicModule):
 
     def forward(self,img):
         img = self.pretrained(img)
-        if self.optimizer.param_groups[0]['lr'] == 0:
-            img = img.detach()
+        #if self.optimizer.param_groups[0]['lr'] == 0:
+        #    img = img.detach()
         features = self.trf(img)
 
         output = self.stages[0](features)

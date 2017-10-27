@@ -164,7 +164,7 @@ class FastItem(object):
             if _c[1]>w_-2:_c[1]=w_-2
         x,y = coords[:,0],coords[:,1]
         rr, cc = draw.polygon(x,y)
-        mask[rr,cc] = limb_vec_unit
+        mask[rr,cc] = limb_vec_unit[::-1] # x和y是相反的
         return mask
     
     def resize(self,img,size,mode='reflect'):
