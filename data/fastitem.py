@@ -172,8 +172,8 @@ class FastItem(object):
         x = x.clip(min=0,max=w_-1)
         y = y.clip(min=0,max=h_-1)
 
-        rr,cc = draw.line(x[0],y[0],x[1],y[1])
-        mask[rr,cc] = limb_vec_unit[::-1]#[np.newaxis, :]*val[:,np.newaxis]
+        rr,cc,val = draw.linei_aa(x[0],y[0],x[1],y[1])
+        mask[rr,cc] = limb_vec_unit[::-1][np.newaxis, :]*val[:,np.newaxis]
         
   #      rr, cc = draw.polygon(x,y)
 #    mask[rr,cc] = limb_vec_unit[::-1] # x和y是相反的
