@@ -53,6 +53,7 @@ class FastItem(object):
 
         key_annos = self.anno['keypoint_annotations']
         for human,key_anno in key_annos.items():
+            # 修改行和列的顺序
             coord2 = [_/(0.+ratio) for _ in key_anno[::3]]
             coord1 = [_/(0.+ratio) for _ in  key_anno[1::3]]
             stat_ = key_anno[2::3]
@@ -124,11 +125,12 @@ class FastItem(object):
                     # 不再图中的就跳过(初始化为0)
                     continue
                 mask = self._PAF(center1,center2,self.ratio)
+                #!TODO: 只有一个人,但是某一个位置还是可能超过多个值是否有问题(3)
                 person_num_mask  = person_num_mask+ ((mask!=0).sum(axis = 2)>0)
                 masks[ii_,:,:,jj_,:] = mask
-        masks = masks.sum(axis=0)/(person_num_mask[:,:,np.newaxis,np.newaxis]+0.000001)
-        
+        masks = masks.sum(axis=0)/(person_num_mask[:,:,np.newaxis,np.newaxis]+1e-100)
         self.paf = masks
+        self.person_num_mask = person_num_mask
         return self.paf
 
     def _PAF(self,center1,center2,ratio):
@@ -139,6 +141,9 @@ class FastItem(object):
         @param ratio: 长宽(粗)比
 
         @return mask: paf, shape(h,w,2)
+
+        #!NOTE: center1(x,y) 是根据行和列设计的座标,也就是根据数组[x][y]对应图中像素
+        然而计算向量的时候,却需要 先取第y列,然后第x行,即和数组相反
         '''
         center1,center2 = np.array(center1),np.array(center2)
         h_,w_ = self.re_size
@@ -169,11 +174,12 @@ class FastItem(object):
         
         x = np.array([center1[0],center2[0]])
         y = np.array([center1[1],center2[1]])
-        x = x.clip(min=0,max=w_-1)
-        y = y.clip(min=0,max=h_-1)
+        x = x.clip(min=0,max=h_-1)
+        y = y.clip(min=0,max=w_-1)
 
-        rr,cc,val = draw.linei_aa(x[0],y[0],x[1],y[1])
-        mask[rr,cc] = limb_vec_unit[::-1][np.newaxis, :]*val[:,np.newaxis]
+        rr,cc,val = draw.line_aa(x[0],y[0],x[1],y[1])
+        # 图的座标和数组的座标不一致
+        mask[rr,cc] = limb_vec_unit[::-1][np.newaxis, :]#*val[:,np.newaxis]#/(np.abs(val).min()+0.0000001)
         
   #      rr, cc = draw.polygon(x,y)
 #    mask[rr,cc] = limb_vec_unit[::-1] # x和y是相反的
