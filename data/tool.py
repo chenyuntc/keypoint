@@ -1,5 +1,5 @@
 #coding:utf8
-
+import torch as t
 import numpy as np
 from skimage import transform
 from pylab import plt
@@ -20,7 +20,7 @@ def show_paf(img,paf,stride = 5,img_size=384,thres=0.1):
     plt.imshow(transform.rescale(img,(1)),alpha=0.5)
     res = plt.quiver( X[::stride,::stride],
                 Y[::stride,::stride],
-                paf[::stride,::stride,::2].sum(axis=2),
+                -paf[::stride,::stride,::2].sum(axis=2),
                 paf[::stride,::stride,1::2].sum(axis=2),            
                 scale=20,
                 units='width', headaxislength=0.01,
@@ -79,3 +79,15 @@ def array2PIL(arr, size):
     return Image.frombuffer(mode, size, arr.tostring(), 'raw', mode, 0, 1)
 
 
+
+def vis_paf(img,paf):
+    #img = (img.cpu()*0.225+0.45).clamp(min=-1,max=1).numpy().transpose((1,2,0))
+    img = img.numpy().transpose((1,2,0))
+    paf =  paf.cpu().numpy().transpose((1,2,0))
+    fig = show_paf(img,paf).get_figure()
+    paf_img = fig2data(fig).astype(np.int32)
+    plt.close()
+    img4vis = t.from_numpy(paf_img[:,:,:3].transpose((2,0,1))/255.).float()
+    return img4vis
+    # vis.img('paf', img4vis)
+    

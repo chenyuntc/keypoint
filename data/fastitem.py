@@ -146,27 +146,33 @@ class FastItem(object):
 
         length = np.linalg.norm(center1-center2)
         limb_vec_unit = (center2-center1)/(length+1e-100)
-        limb_perp_unit = np.array([-limb_vec_unit[1],limb_vec_unit[0]])
-        width = int(length*ratio/2)+1
+        # limb_perp_unit = np.array([-limb_vec_unit[1],limb_vec_unit[0]])
+        # width = int(length*ratio/2)+1
         # if width>1:print width
 
-        coords = np.zeros([4,2])
-        coords[0] = center1 - limb_perp_unit*width
-        coords[1] = center1 + limb_perp_unit*width
-        coords[2] = center2 + limb_perp_unit*width
-        coords[3] = center2 - limb_perp_unit*width
+        # coords = np.zeros([4,2])
+        # coords[0] = center1 - limb_perp_unit*width
+        # coords[1] = center1 + limb_perp_unit*width
+        # coords[2] = center2 + limb_perp_unit*width
+        # coords[3] = center2 - limb_perp_unit*width
 
         # 不要让他超出边界
-        for _c in coords:
-            if _c[0]<0:_c[0]=0
-            if _c[0]>h_-2:_c[0]=h_-1
-            if _c[1]<0:_c[1]=0
-            if _c[1]>w_-2:_c[1]=w_-1
-        x,y = coords[:,0],coords[:,1]
-        
-        x,y = np.array(x).round().astype(np.int32),np.array(y).round().astype(np.int32)
+        # for _c in coords:
+        #    if _c[0]<0:_c[0]=0
+        #    if _c[0]>h_-1:_c[0]=h_-1
+        #    if _c[1]<0:_c[1]=0
+        #    if _c[1]>w_-1:_c[1]=w_-1
+        # x,y = coords[:,0],coords[:,1]
+        #x,y = np.array(x).round().astype(np.int32),np.array(y).round().astype(np.int32)
+
         center1,center2 = np.round(center1).astype(np.int32),np.round(center2).astype(np.int32)
-        rr,cc = draw.line(center1[0],center1[1],center2[0],center2[1])
+        
+        x = np.array([center1[0],center2[0]])
+        y = np.array([center1[1],center2[1]])
+        x = x.clip(min=0,max=w_-1)
+        y = y.clip(min=0,max=h_-1)
+
+        rr,cc = draw.line(x[0],y[0],x[1],y[1])
         mask[rr,cc] = limb_vec_unit[::-1]#[np.newaxis, :]*val[:,np.newaxis]
         
   #      rr, cc = draw.polygon(x,y)
