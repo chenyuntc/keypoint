@@ -56,13 +56,13 @@ def train(**kwargs):
             weight = t.autograd.Variable(weight).cuda()
             outputs = model(img)
             loss, loss_list = l2_loss(outputs, target, weight)
-            #(loss).backward()
+            (loss).backward()
             loss_meter.add(loss.data[0])
-            #optimizer.step()
+            optimizer.step()
 
             # 可视化， 记录， log，print
             if ii % opt.plot_every == 0 and ii > 0:
-                if os.path.exists(opt.seg_debug_file):
+                if os.path.exists(opt.debug_file):
                     ipdb.set_trace()
                 vis_plots = {'loss': loss_meter.value()[0], 'ii': ii}
                 vis.plot_many(vis_plots)

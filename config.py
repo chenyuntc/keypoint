@@ -15,7 +15,7 @@ class Config:
     batch_size = 32
     num_workers = 10
     shuffle = True
-    seg_debug_file = '/tmp/debugbk'
+    debug_file = '/tmp/debugk'
     lr1 = 0
     lr2 = 1e-3
     max_epoch = 100
