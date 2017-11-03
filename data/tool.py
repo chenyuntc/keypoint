@@ -4,8 +4,9 @@ import numpy as np
 from skimage import transform
 from pylab import plt
 from PIL import Image
+from skimage import transform
 
-def show_paf(img,paf,stride = 5,img_size=384,thres=0.1):
+def show_paf(img,paf,stride = 5,thres=0.1):
     """
     @param img: ndarry, HxWx3
     @param paf: ndarry, HxWxN
@@ -15,9 +16,10 @@ def show_paf(img,paf,stride = 5,img_size=384,thres=0.1):
     mask  = (paf**2).reshape(h,w,n/2,2).sum(axis=3).sum(axis=2)<thres
     paf[mask] = 0
     
-    X,Y = np.meshgrid(np.arange(0,img_size),np.arange(0,img_size))
+#     img_size = img.shape[:2]
+    X,Y = np.meshgrid(np.arange(0,w),np.arange(0,h))
     
-    plt.imshow(transform.rescale(img,(1)),alpha=0.5)
+    plt.imshow(img, alpha=0.5)
     res = plt.quiver( X[::stride,::stride],
                 Y[::stride,::stride],
                 -paf[::stride,::stride,::2].sum(axis=2),
