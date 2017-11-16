@@ -41,9 +41,6 @@ def test_file(pose_model,file_name='206998b0cca06ec6f3951e4acf7e178e114bdba7.jpg
     oriImg = cv.imread(test_image) # B,G,R order
     multiplier = [x * opt.boxsize*1.0 / oriImg.shape[0] for x in opt.scale_search]
     
-    # 模型
-
-
     # 得到heatmap+paf
     heatmap_avg = np.zeros((oriImg.shape[0], oriImg.shape[1], 15))
     paf_avg = np.zeros((oriImg.shape[0], oriImg.shape[1], 26))
@@ -57,7 +54,7 @@ def test_file(pose_model,file_name='206998b0cca06ec6f3951e4acf7e178e114bdba7.jpg
     paf_avg /= len(multiplier)
 
     # 找到关键点
-    all_peaks,peak_counter = find_peaks(heatmap,0.1)
+    all_peaks,peak_counter = find_peaks(heatmap_avg,0.1)
     # 找到连接
     special_k,connection_all = find_connection(all_peaks,paf_avg)
     # 找到人

@@ -154,7 +154,9 @@ def find_peaks(heatmap_avg,thre1=0.1):
     - 关键点必须大于阈值thre1
     @param heatmap_avg: 融合之后的热力图
     @param thre1: 热力图阈值
-    @return all_peaks: list,每个元素形如: (coord_x, coord_y, score, id)
+    @return all_peaks: list,,len=14(个关键点),每个元素形如: [
+        cooradx,coordy,score,idx(第几个峰值)
+        (119, 355, 0.71655809879302979, 0), (330, 393, 0.71109861135482788, 1)]
     @return peak_counter: 多少个关键点 某一类关键点可能有多个,因为图中有多个人
     """
     param={}
@@ -209,7 +211,10 @@ def find_connection(all_peaks,paf_avg,thre2= 0.05):
     @return connection_candidate: list, 每个元素形如:
     ([i, j,score_with_dist_prior, score_with_dist_prior+candA[i][2]+candB[j][2]])
     @return special_l: list of k,表示第k个躯干没找到
-    @return connection_all: list,每个元素形如 [candA_score, candB_score, score, i, j]
+    @return connection_all: list len=13，每一项元素connection表示某种躯干，一个躯干有多个可能（多人）
+    connection 也是一个list，每个元素 [第几个峰值(allpeaks), 第几个峰值, score, 是第几个头(peak), 是第几个脖子]]
+    
+
     """
     # 13/头顶	14/脖子 头顶指向脖子属于躯干的一个limb
     mid_1=[13,1,4,1,2,4,5,1,7, 8,4,10,11]
@@ -260,7 +265,9 @@ def find_connection(all_peaks,paf_avg,thre2= 0.05):
             connection_candidate = sorted(connection_candidate, key=lambda x: x[2], reverse=True)
             connection = np.zeros((0,5))
             for c in range(len(connection_candidate)):
+                ## 找最可能的连接点，并且满足没有重复连接的（类似于nms）
                 i,j,s = connection_candidate[c][0:3]
+                # 每个点-枝干对， 每个点都只分配给所有可能的枝干中最大的一个
                 if(i not in connection[:,3] and j not in connection[:,4]):
                     #!TODO: 连续vstack有损效率
                     connection = np.vstack([connection, [candA[i][3], candB[j][3], s, i, j]])
@@ -305,14 +312,15 @@ def get_result(subsets,candidate,image_id):
 
 def find_person(all_peaks,special_k,connection_all):
     """
-    @param 
-    @param
-    @return 
-    @retuen 
+    @param all_peaks:
+    @param special_k: 未找到的关节
+    @return connection_all: pass
+    @retuen subset: ndarray，human_numx16，形如[头对应all_peaks中哪一个peak,脖子对应all_peak中哪一个peak],-1代表没找到
+    @return candidate: 所有的peak(某类关键点可能有多个)
     """
-    subset = -1 * np.ones((0, 16))
+    subset = -1 * np.ones((0, 16)) #14个关键点+这个人的分数，和这个人找到了多少个关键点
     limbSeq = [[13,14], [1,14], [4,14], [1,2], [2,3], [4,5], [5,6], [1,7], \
-           [7,8], [8,9], [4,10], [10,11], [11,12]]
+           [7,8], [8,9], [4,10], [10,11], [11,12]] #有规律：每个枝干至少和之前的枝干有一个共同点
     # the middle joints heatmap correpondence
     mapIdx = [[i,i+1] for i in range(0,26,2)]
 
@@ -328,8 +336,10 @@ def find_person(all_peaks,special_k,connection_all):
 
             for i in range(len(connection_all[k])): #= 1:size(temp,1)
                 found = 0
-                subset_idx = [-1, -1]
+                subset_idx = [-1, -1] #哪两个人应该合并
                 for j in range(len(subset)): #1:size(subset,1):
+                    # subset[j][indexA] == partAs[i]
+                    #NOTE  found不可能大于2 为什么？（每一次都会合并，所以永远没有共享的状态）
                     if subset[j][indexA] == partAs[i] or subset[j][indexB] == partBs[i]:
                         subset_idx[found] = j
                         found += 1
@@ -337,22 +347,31 @@ def find_person(all_peaks,special_k,connection_all):
                 if found == 1:
                     j0 = subset_idx[0]
                     if(subset[j0][indexB] != partBs[i]):
+                        # 重复的那个点是A，就把新的B加入到这个人，
                         subset[j0][indexB] = partBs[i]
                         subset[j0][-1] += 1
                         subset[j0][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
                     else:
+                        #重复的是Ｂ，就把新的Ａ加入
                         subset[j0][indexA] = partAs[i]
                         subset[j0][-1] += 1
                         subset[j0][-2] += candidate[partAs[i].astype(int), 2] + connection_all[k][i][2]
-                elif found == 2: # if found 2 and disjoint, merge them
+                elif found == 2: 
+                    # found==2意味着：这个躯干同时在之前两个人之间连接，这时候要把他们给合并成一个人的
+                    # if found 2 and disjoint, merge them
                     j1, j2 = subset_idx
                     membership = ((subset[j1]>=0).astype(int) + (subset[j2]>=0).astype(int))[:-2]
-                    if len(np.nonzero(membership == 2)[0]) == 0: #merge
+                    if len(np.nonzero(membership == 2)[0]) == 0: #这两个人没有一个共同的peak（任何一个关键点，都只有其中一个人找到了）
+                    ##  一个人，如果某一个关键点被遮挡住了，但是后来通过这种方式还是可以连到一起
+                    #NOTE： 这个在只有13条连接线的情况下是做不到的！ 因为13条连接线是最小的，不可能重新连到一起！！！！
                         subset[j1][:-2] += (subset[j2][:-2] + 1)
                         subset[j1][-2:] += subset[j2][-2:]
                         subset[j1][-2] += connection_all[k][i][2]
                         subset = np.delete(subset, j2, 0)
                     else: # as like found == 1
+                        #　有两个头，，肯定无法合并成一个人，这里的做法是直接分配给第一个人
+                        # TODO 这里可以优化
+                        # NOTE 不科学 什么鬼
                         subset[j1][indexB] = partBs[i]
                         subset[j1][-1] += 1
                         subset[j1][-2] += candidate[partBs[i].astype(int), 2] + connection_all[k][i][2]
@@ -362,13 +381,12 @@ def find_person(all_peaks,special_k,connection_all):
                     row = -1 * np.ones(16)
                     row[indexA] = partAs[i]
                     row[indexB] = partBs[i]
-                    row[-1] = 2
-                    row[-2] = sum(candidate[connection_all[k][i,:2].astype(int), 2]) + connection_all[k][i][2]
-                    #!TODO:连续的vstack有损性能
+                    row[-1] = 2 # 找了多少个关键点
+                    row[-2] = sum(candidate[connection_all[k][i,:2].astype(int), 2]) + connection_all[k][i][2] # 人的分数（peak+limb的分数）
                     subset = np.vstack([subset, row])
 
     # delete some rows of subset which has few parts occur
-    deleteIdx = [];
+    deleteIdx = []
     keepIdx=[]
     for i in range(len(subset)):
         if subset[i][-1] < 5 or subset[i][-2]/subset[i][-1] < 0.5:
