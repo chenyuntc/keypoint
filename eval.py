@@ -34,11 +34,11 @@ from config import opt
 
 def parse(kwargs):
     ## 处理配置和参数
-    for k, v in kwargs.iteritems():
+    for k, v in kwargs.items():
         if not hasattr(opt, k):
             print("Warning: opt has not attribut %s" % k)
         setattr(opt, k, v)
-    for k, v in opt.__class__.__dict__.iteritems():
+    for k, v in opt.__class__.__dict__.items():
         if not k.startswith('__'): print(k, getattr(opt, k))
 
 
