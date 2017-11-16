@@ -54,7 +54,8 @@ def test_file(pose_model,file_name='206998b0cca06ec6f3951e4acf7e178e114bdba7.jpg
     heatmap_avg /= len(multiplier)
     paf_avg /= len(multiplier)
     result = dict(heatmap=heatmap_avg,paf=paf_avg)
-    t.save(result,'%s/%s.pth' %(opt.output_path,file_nam))
+    save_path = '%s/%s.npz' %(opt.output_path,file_name.split('/')[-1][:-4])
+    np.savez_compressed(save_path,paf=paf_avg,heatmap=heatmap_avg)
     # # 找到关键点
     # all_peaks,peak_counter = find_peaks(heatmap_avg,0.1)
     # # 找到连接
