@@ -6,11 +6,24 @@ from pylab import plt
 import torchvision as tv
 import copy
 import scipy
-
+from collections import namedtuple
 from scipy.ndimage.filters import gaussian_filter
 import math
 import json
 
+Result = namedtuple('Result', ['all_peaks','peak_counter',\
+        'special_k','connection_all','subsets','candidate','pred'])
+class HyperParameter:
+    h_thre=0.1 # heatmap 关键点阈值
+    p_thre = 0.05 # paf阈值
+    sigma= 5 # 高斯滤波器的sigma
+    min_limb_num = 5 # 一个人至少找到5个关节才行
+    min_avg_score = 0.5 # 一个人的关节之间的置信度阈值
+    criterion1 = None
+    criterion2 = None
+    search_order = None
+
+#hp = HyperParameter()
 
 def padRightDownCorner(img, stride, padValue):
     """
@@ -43,6 +56,14 @@ def padRightDownCorner(img, stride, padValue):
     return img_padded, pad
 
 
+def find(heatmap,paf,file_name,hp):
+    all_peaks,peak_counter = find_peaks(heatmap,hp )
+    # 找到连接
+    special_k,connection_all = find_connection(all_peaks,paf,hp )
+    # 找到人
+    subsets,candidate = find_person(all_peaks,special_k,connection_all,hp)
+    pred = get_result(subsets,candidate,file_name.split('/')[-1][:-4])
+    return Result(all_peaks,peak_counter,special_k,connection_all,subsets,candidate,pred)
 
 def flip_heatmap(heatmap1,heatmap2):
     '''
@@ -67,36 +88,6 @@ def flip_paf(paf1,paf2):
     map_index = [0,1,4,6,2,3,10,11,12,13,6,7,8,9,20,21,22,23,24,25,14,15,16,17,18,19]
     map_ = np.array([-1 if ii%2==0 else 1 for ii in range(26)])
     output2 = paf1+paf2[:,::-1,map_index]*map_
-
-    # output=np.zeros([paf1.shape[0],paf2.shape[1],26])
-    # output[:,:,0]=paf1[:,:,0]-paf2[:,::-1,0]#13,14
-    # output[:,:,1]=paf1[:,:,1]+paf2[:,::-1,1]#13,14
-    # output[:,:,2]=paf1[:,:,2]-paf2[:,::-1,4]#1,14
-    # output[:,:,3]=paf1[:,:,3]+paf2[:,::-1,6]#1,14
-    # output[:,:,4]=paf1[:,:,4]-paf2[:,::-1,2]#4,14
-    # output[:,:,5]=paf1[:,:,5]+paf2[:,::-1,3]#4,14
-    # output[:,:,6]=paf1[:,:,6]-paf2[:,::-1,10]
-    # output[:,:,7]=paf1[:,:,7]+paf2[:,::-1,11]  
-    # output[:,:,8]=paf1[:,:,8]-paf2[:,::-1,12]
-    # output[:,:,9]=paf1[:,:,9]+paf2[:,::-1,13]
-    # output[:,:,10]=paf1[:,:,10]-paf2[:,::-1,6]
-    # output[:,:,11]=paf1[:,:,11]+paf2[:,::-1,7]
-    # output[:,:,12]=paf1[:,:,12]-paf2[:,::-1,8]
-    # output[:,:,13]=paf1[:,:,13]+paf2[:,::-1,9]
-    # output[:,:,14]=paf1[:,:,14]-paf2[:,::-1,20]
-    # output[:,:,15]=paf1[:,:,15]+paf2[:,::-1,21]
-    # output[:,:,16]=paf1[:,:,16]-paf2[:,::-1,22]
-    # output[:,:,17]=paf1[:,:,17]+paf2[:,::-1,23]
-    # output[:,:,18]=paf1[:,:,18]-paf2[:,::-1,24]
-    # output[:,:,19]=paf1[:,:,19]+paf2[:,::-1,25]
-    # output[:,:,20]=paf1[:,:,20]-paf2[:,::-1,14]
-    # output[:,:,21]=paf1[:,:,21]+paf2[:,::-1,15]
-    # output[:,:,22]=paf1[:,:,22]-paf2[:,::-1,16]
-    # output[:,:,23]=paf1[:,:,23]+paf2[:,::-1,17]
-    # output[:,:,24]=paf1[:,:,24]-paf2[:,::-1,18]
-    # output[:,:,25]=paf1[:,:,25]+paf2[:,::-1,19]
-    # print np.abs(output-output2).sum()#<1e-6
-    # print 'testpass'
     return output2/2.0
 
 
@@ -146,12 +137,12 @@ def get_output(pose_model,scale,oriImg,stride):
     
     return (heatmap1,heatmap2),(paf1,paf2)
 
-def find_peaks(heatmap_avg,thre1=0.1):
+def find_peaks(heatmap_avg,hp):
     """
     从heatmap中找出真正的关键点:
     - 用高斯滤波器滤波
     - 关键点必须同时大于与之相邻的四个点
-    - 关键点必须大于阈值thre1
+    - 关键点必须大于阈值hp.thre1
     @param heatmap_avg: 融合之后的热力图
     @param thre1: 热力图阈值
     @return all_peaks: list,,len=14(个关键点),每个元素形如: [
@@ -159,19 +150,6 @@ def find_peaks(heatmap_avg,thre1=0.1):
         (119, 355, 0.71655809879302979, 0), (330, 393, 0.71109861135482788, 1)]
     @return peak_counter: 多少个关键点 某一类关键点可能有多个,因为图中有多个人
     """
-    param={}
-    param['octave'] = 3
-    param['use_gpu'] = 1
-    param['starting_range'] = 0.8
-    param['ending_range'] = 2
-    param['scale_search'] = [0.5, 1, 1.5, 2]
-    param['thre1'] = 0.1
-    param['thre2'] = 0.05
-    param['thre3'] = 0.5
-    param['mid_num'] = 4
-    param['min_num'] = 10
-    param['crop_ratio'] = 2.5
-    param['bbox_ratio'] = 0.25
 
     all_peaks = []
     peak_counter = 0
@@ -180,7 +158,7 @@ def find_peaks(heatmap_avg,thre1=0.1):
         x_list = []
         y_list = []
         map_ori = heatmap_avg[:,:,part]
-        map = gaussian_filter(map_ori, sigma=3)
+        map = gaussian_filter(map_ori, hp.sigma)
         
         map_left = np.zeros(map.shape)
         map_left[1:,:] = map[:-1,:]
@@ -191,20 +169,24 @@ def find_peaks(heatmap_avg,thre1=0.1):
         map_down = np.zeros(map.shape)
         map_down[:,:-1] = map[:,1:]
         #mask 的点分别与它左边 右边 上边 下边的一个点比较  并且〉thre1
-        peaks_binary = np.logical_and.reduce((map>=map_left, map>=map_right, map>=map_up, map>=map_down, map > thre1))
+        peaks_binary = np.logical_and.reduce((map>=map_left, map>=map_right, map>=map_up, map>=map_down, map > hp.h_thre))
         peaks = zip(np.nonzero(peaks_binary)[1], np.nonzero(peaks_binary)[0]) # 注意顺序是反着的
-        rett=copy.deepcopy(peaks)
-        ll=len(tuple(rett))
+        # rett=copy.deepcopy(peaks) # deepcopy-python3
+        # ll=len(tuple(rett))
+        ll= (len(peaks))
+
+
         peaks_with_score = [x + (map_ori[x[1],x[0]],) for x in peaks]
         ids = range(peak_counter, peak_counter + ll)
-        peaks_with_score_and_id = [peaks_with_score[i] + (ids[i],) for i in range(len(ids))]
+        # peaks_with_score_and_id = [peaks_with_score[i] + (ids[i],) for i in range(len(ids))]
+        peaks_with_score_and_id = [peaks_with_score[i] + (id_,) for i,id_ in enumerate(ids)]
 
         all_peaks.append(peaks_with_score_and_id)
         peak_counter += ll
     return all_peaks,peak_counter
 
 
-def find_connection(all_peaks,paf_avg,thre2= 0.05):
+def find_connection(all_peaks,paf_avg,hp):
     """
     @param all_peaks: list,每个元素形如: (coord_x, coord_y, score, id)
     @param paf_avg: ndarray, shape hXwX26
@@ -213,10 +195,9 @@ def find_connection(all_peaks,paf_avg,thre2= 0.05):
     @return special_l: list of k,表示第k个躯干没找到
     @return connection_all: list len=13，每一项元素connection表示某种躯干，一个躯干有多个可能（多人）
     connection 也是一个list，每个元素 [第几个峰值(allpeaks), 第几个峰值, score, 是第几个头(peak), 是第几个脖子]]
-    
-
     """
     # 13/头顶	14/脖子 头顶指向脖子属于躯干的一个limb
+    EPS = 1e-30
     mid_1=[13,1,4,1,2,4,5,1,7, 8,4,10,11]
     mid_2=[14,14,14,2,3,5,6,7,8,9,10,11,12]
     # find connection in the specified sequence, center 29 is in the position 15
@@ -244,19 +225,21 @@ def find_connection(all_peaks,paf_avg,thre2= 0.05):
             for i in range(nA):
                 for j in range(nB):
                     vec = np.subtract(candB[j][:2], candA[i][:2])
-                    norm = math.sqrt(vec[0]*vec[0] + vec[1]*vec[1])
+                    norm = math.sqrt(vec[0]*vec[0] + vec[1]*vec[1])+1e-100
                     vec = np.divide(vec, norm) # 单位向量
                     startend = tuple(zip(np.linspace(candA[i][0], candB[j][0], num=mid_num), \
                                 np.linspace(candA[i][1], candB[j][1], num=mid_num))) # 两个关键点之间的连线经过的点,每一项是(x,y)
-                    lll=len(tuple(copy.deepcopy(startend)))
+                    # lll=len(tuple(copy.deepcopy(startend)))   ####deepcopy个毛
+                    lll=len(tuple((startend)))
                     vec_x = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 0] \
                                     for I in range(lll)])
                     vec_y = np.array([score_mid[int(round(startend[I][1])), int(round(startend[I][0])), 1] \
                                     for I in range(lll)])
                     score_midpts = np.multiply(vec_x, vec[0]) + np.multiply(vec_y, vec[1]) #向量余弦距离
                     #论文公式10  求E
-                    score_with_dist_prior = sum(score_midpts)/len(score_midpts) + min(0.5*paf_avg.shape[0]/norm-1, 0)
-                    criterion1 = len(np.nonzero(score_midpts > thre2)[0]) > 0.8 * len(score_midpts) # 两个关键点连线上有80%的点向量相似度大于阈值
+                    if len(score_midpts)==0:print 'len 0'
+                    score_with_dist_prior = sum(score_midpts)/(len(score_midpts)+EPS) + min(0.5*paf_avg.shape[0]/(norm+EPS)-1, 0)
+                    criterion1 = len(np.nonzero(score_midpts > hp.p_thre)[0]) > hp.conn_thre * len(score_midpts) # 两个关键点连线上有80%的点向量相似度大于阈值
                     criterion2 = score_with_dist_prior > 0 # 两个关键点连线的paf与向量方向相同
                     
                     if criterion1 and criterion2:
@@ -269,7 +252,6 @@ def find_connection(all_peaks,paf_avg,thre2= 0.05):
                 i,j,s = connection_candidate[c][0:3]
                 # 每个点-枝干对， 每个点都只分配给所有可能的枝干中最大的一个
                 if(i not in connection[:,3] and j not in connection[:,4]):
-                    #!TODO: 连续vstack有损效率
                     connection = np.vstack([connection, [candA[i][3], candB[j][3], s, i, j]])
                     if(len(connection) >= min(nA, nB)):
                         break
@@ -310,7 +292,7 @@ def get_result(subsets,candidate,image_id):
     return img_result
 
 
-def find_person(all_peaks,special_k,connection_all):
+def find_person(all_peaks,special_k,connection_all,hp):
     """
     @param all_peaks:
     @param special_k: 未找到的关节
@@ -389,7 +371,7 @@ def find_person(all_peaks,special_k,connection_all):
     deleteIdx = []
     keepIdx=[]
     for i in range(len(subset)):
-        if subset[i][-1] < 5 or subset[i][-2]/subset[i][-1] < 0.5:
+        if subset[i][-1] < hp.min_limb_num or subset[i][-2]/subset[i][-1] < hp.min_avg_score:
             deleteIdx.append(i)
         else:keepIdx.append(i)
     subset = np.delete(subset, deleteIdx, axis=0)
@@ -397,4 +379,25 @@ def find_person(all_peaks,special_k,connection_all):
     return subset,candidate
                     
         
+
+    
+import torch as t
+def get_dataloader(test_files,num_workers=2):
+    dataset = Dataset(test_files)
+    dataloader = t.utils.data.DataLoader(dataset,num_workers=2)
+    return dataloader
+
+class Dataset:
+
+    def __init__(self,files):
+        self.files = files
+
+    def __getitem__(self,index):
+        _d = np.load(self.files[index])
+        heatmap,paf = _d['heatmap'],_d['paf']
+        return (heatmap,paf,self.files[index])
+
+    def __len__(self):
+        return len(self.files)
+
 

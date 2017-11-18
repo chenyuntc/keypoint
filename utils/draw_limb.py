@@ -1,9 +1,10 @@
 #coding:utf8
 import numpy as np
 import json
-from scipy.imageio import imread
+from scipy.misc import imread
 import cv2
 from tqdm import tqdm
+from pylab import plt
 '''
 1/右肩，2/右肘，3/右腕，4/左肩，5/左肘，6/左腕，
 7/右髋，8/右膝，9/右踝，10/左髋，11/左膝，12/左踝，13/头顶，14/脖子。
@@ -14,22 +15,37 @@ part_labels = ['sho_r','elb_r','wri_r','sho_l','elb_l','wri_l','hip_r','kne_r','
 #                'hip_l','hip_r','kne_l','kne_r','ank_l','ank_r']
 part_idx = {b:a for a, b in enumerate(part_labels)}
 
+
+def show_limb(pred,img_path):
+    img = imread(img_path)
+    annos =  pred.get('keypoint_annotations', pred.get('keypoint_annos'))
+    for human in annos.values():
+        draw_limbs(img,human)
+    return plt.imshow(img)
+#def show_limb2(pred,root):
+#    img = root+pred['image_id']+'.jpg'
+ #   img = imread(img)
+#    annos =  pred.get('keypoint_annotations', pred.get('keypoint_annos'))
+ #   for human in annos.values():
+  #      draw_limbs(img,human)
+  #      break
+  #  return plt.imshow(img)
 def draw_limbs(inp, pred):
     def link(a, b, color):
         if part_idx[a] < pred.shape[0] and part_idx[b] < pred.shape[0]:
             a = pred[part_idx[a]]
             b = pred[part_idx[b]]
            # if a[2]>0.07 and b[2]>0.07:
-            #if a[1]*b[1]*a[0]*b[0]:
-            if a[2]<3 and b[2]<3:
+        
+            if a[2]<3 and b[2]<3 and a[0]*b[0]:
                 cv2.line(inp, (int(a[0]), int(a[1])), (int(b[0]), int(b[1])), color, 6)
 
     pred = np.array(pred).reshape(-1, 3)
     bbox = pred[pred[:,2]>0]
-    bbox[bbox==0]=bbox.max()
-    a, b, c, d = bbox[:,0].min(), bbox[:,1].min(), bbox[:,0].max(), bbox[:,1].max()
-
-    cv2.rectangle(inp, (int(a), int(b)), (int(c), int(d)), (255, 255, 255), 2)
+    
+    a, b, c, d = bbox[:,0][bbox[:,0]>0].min(),  bbox[:,1][bbox[:,1]>0].min(),\
+                 bbox[:,0][bbox[:,0]>0].max(),  bbox[:,1][bbox[:,1]>0].max()
+    cv2.rectangle(inp, (int(a), int(b)), (int(c), int(d)), (255, 255, 255), 5)
 
     # link('nose', 'eye_l', (255, 0, 0))
     # link('eye_l', 'eye_r', (255, 0, 0))

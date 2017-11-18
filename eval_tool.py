@@ -6,7 +6,7 @@ import pprint
 
 import numpy as np
 from config import opt
-
+from warnings import warn
 
 def parse(kwargs):
     ## 处理配置和参数
@@ -18,7 +18,7 @@ def parse(kwargs):
         if not k.startswith('__'): print(k, getattr(opt, k))
 
 
-def load_annotations(annos, return_dict):
+def load_annotations(annos):
     """Convert annotation JSON file."""
 
     annotations = dict()
@@ -26,6 +26,7 @@ def load_annotations(annos, return_dict):
     annotations['annos'] = dict()
     annotations['delta'] = 2*np.array([0.01388152, 0.01515228, 0.01057665, 0.01417709, \
                                        0.01497891, 0.01402144, 0.03909642, 0.03686941, 0.01981803, \
+                                       0.03843971, 0.03412318, 0.02415081, 0.01291456, 0.01236173])
  
 
     for anno in annos:
@@ -39,7 +40,7 @@ def load_annotations(annos, return_dict):
     return annotations
 
 
-def load_predictions(preds, return_dict):
+def load_predictions(preds):
     """Convert prediction JSON file."""
 
     predictions = dict()
@@ -50,17 +51,16 @@ def load_predictions(preds, return_dict):
 
     for pred in preds:
         if 'image_id' not in pred.keys():
-            return_dict['warning'].append(
-                'There is an invalid annotation info, \
+            warn('There is an invalid annotation info, \
                 likely missing key \'image_id\'.')
             continue
         if 'keypoint_annotations' not in pred.keys():
-            return_dict['warning'].append(pred['image_id']+\
+            warn(pred['image_id']+\
                 ' does not have key \'keypoint_annotations\'.')
             continue
         image_id = pred['image_id'].split('.')[0]
         if image_id in id_set:
-            return_dict['warning'].append(pred['image_id']+\
+            warn(pred['image_id']+\
                 ' is duplicated in prediction JSON file.')
         else:
             id_set.add(image_id)
@@ -78,6 +78,7 @@ def compute_oks(anno, predict, delta):
     anno_count = len(anno['keypoint_annos'].keys())
     predict_count = len(predict.keys())
     oks = np.zeros((anno_count, predict_count))
+    if predict_count == 0:return oks.T
 
     # for every human keypoint annotation
     for i in range(anno_count):
@@ -98,12 +99,12 @@ def compute_oks(anno, predict, delta):
                     - predict_keypoints[visible, :2])**2, axis=1)
                 oks[i, j] = np.mean(
                     np.exp(-dis / 2 / delta[visible]**2 / (scale + 1)))
-    if anno_count<50:
-        print ("oks: ",oks)
+   # if anno_count<50:
+    #    print ("oks: ",oks)
     return oks
 
 
-def keypoint_eval(predictions, annotations, return_dict):
+def keypoint_eval(predictions, annotations):
     """Evaluate predicted_file and return mAP."""
 
     oks_all = np.zeros((0))
@@ -118,13 +119,13 @@ def keypoint_eval(predictions, annotations, return_dict):
                               predict=predictions['annos'][image_id]['keypoint_annos'], \
                               delta=annotations['delta'])
             # view pairs with max OKSs as match ones, add to oks_all
-            oks_all = np.concatenate((oks_all, np.max(oks, axis=0)), axis=0)
+            oks_all = np.concatenate((oks_all, np.max(oks, axis=1)), axis=0)
             # accumulate total num by max(gtN,pN)
             oks_num += np.max(oks.shape)
         else:
+            continue
             # otherwise report warning
-            return_dict['warning'].append(
-                image_id + ' is not in the prediction JSON file.')
+            warn(image_id + ' is not in the prediction JSON file.')
             # number of humen in ground truth annotations
             gt_n = len(annotations['annos'][image_id]['human_annos'].keys())
             # fill 0 in oks scores
@@ -133,36 +134,31 @@ def keypoint_eval(predictions, annotations, return_dict):
             #oks_num += gt_n
 
     # compute mAP by APs under different oks thresholds
-    print (oks_num)
+    #print (oks_num)
     average_precision = []
     for threshold in np.linspace(0.5, 0.95, 10):
         num_thre = np.sum(oks_all > threshold)
         average_precision.append(
             num_thre / np.float32(oks_num))
-        print (num_thre, num_thre / np.float32(oks_num))
+        #print (num_thre, num_thre / np.float32(oks_num))
     #print (average_precision)
-    return_dict['score'] = np.mean(average_precision)
+    return np.mean(average_precision),(oks_all,oks_num)
 
-    return return_dict
 
 
 def test(preds,annos):
-    parse(kwargs)
-    return_dict = dict()
-    return_dict['error'] = None
-    return_dict['warning'] = []
-    return_dict['score'] = None
+
 
     #annos = json.load(open(opt.ref)))
-    annotations = load_annotations(annos, return_dict)
+    #annotations = load_annotations(annos)
 
-    predictions = load_predictions(preds, return_dict)
+    
 
-    return_dict = keypoint_eval(
-        predictions=predictions,
-        annotations=annotations,
-        return_dict=return_dict)
-    print ('Score: ', '%.8f' % return_dict['score'])
+    score = keypoint_eval(
+        predictions=preds,
+        annotations=annos,
+        )
+    print ('Score: ', '%.8f' % score)
 
 
 

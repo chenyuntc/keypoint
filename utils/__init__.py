@@ -1,1 +1,1 @@
-from visualize import Visualizer,mask_img
+from .visualize import Visualizer,mask_img
