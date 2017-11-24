@@ -110,7 +110,8 @@ def keypoint_eval(predictions, annotations):
     oks_all = np.zeros((0))
     oks_num = 0
     prediction_id_set = set(predictions['image_ids'])
-
+    _oks_ = []
+    
     # for every annotation in our test/validation set
     for image_id in annotations['image_ids']:
         # if the image in the predictions, then compute oks
@@ -118,6 +119,7 @@ def keypoint_eval(predictions, annotations):
             oks = compute_oks(anno=annotations['annos'][image_id], \
                               predict=predictions['annos'][image_id]['keypoint_annos'], \
                               delta=annotations['delta'])
+            _oks_.append(oks)
             # view pairs with max OKSs as match ones, add to oks_all
             oks_all = np.concatenate((oks_all, np.max(oks, axis=1)), axis=0)
             # accumulate total num by max(gtN,pN)
@@ -142,7 +144,7 @@ def keypoint_eval(predictions, annotations):
             num_thre / np.float32(oks_num))
         #print (num_thre, num_thre / np.float32(oks_num))
     #print (average_precision)
-    return np.mean(average_precision),(oks_all,oks_num)
+    return np.mean(average_precision),(oks_all,oks_num,_oks_)
 
 
 

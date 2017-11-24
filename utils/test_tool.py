@@ -12,7 +12,7 @@ import math
 import json
 
 Result = namedtuple('Result', ['all_peaks','peak_counter',\
-        'special_k','connection_all','subsets','candidate','pred'])
+        'special_k','connection_all','subsets','candidate','pred','rrs','file_name'])
 class HyperParameter:
     h_thre=0.1 # heatmap 关键点阈值
     p_thre = 0.05 # paf阈值
@@ -61,9 +61,10 @@ def find(heatmap,paf,file_name,hp):
     # 找到连接
     special_k,connection_all = find_connection(all_peaks,paf,hp )
     # 找到人
-    subsets,candidate = find_person(all_peaks,special_k,connection_all,hp)
+    subsets,candidate,rrs = find_person(all_peaks,special_k,connection_all,hp)
     pred = get_result(subsets,candidate,file_name.split('/')[-1][:-4])
-    return Result(all_peaks,peak_counter,special_k,connection_all,subsets,candidate,pred)
+    _file = file_name.split('/')[-1][:-4]
+    return Result(all_peaks,peak_counter,special_k,connection_all,subsets,candidate,pred,rrs,_file)
 
 def flip_heatmap(heatmap1,heatmap2):
     '''
@@ -305,10 +306,10 @@ def find_person(all_peaks,special_k,connection_all,hp):
            [7,8], [8,9], [4,10], [10,11], [11,12]] #有规律：每个枝干至少和之前的枝干有一个共同点
     # the middle joints heatmap correpondence
     mapIdx = [[i,i+1] for i in range(0,26,2)]
-
+    rrs= []
     candidate = np.array([item for sublist in all_peaks for item in sublist])
     for k in range(len(mapIdx)):
-        
+        rrs.append(subset)
         if k not in special_k:
             ## all_peaks id 
             partAs = connection_all[k][:,0]
@@ -368,15 +369,15 @@ def find_person(all_peaks,special_k,connection_all,hp):
                     subset = np.vstack([subset, row])
 
     # delete some rows of subset which has few parts occur
-    deleteIdx = []
-    keepIdx=[]
-    for i in range(len(subset)):
-        if subset[i][-1] < hp.min_limb_num or subset[i][-2]/subset[i][-1] < hp.min_avg_score:
-            deleteIdx.append(i)
-        else:keepIdx.append(i)
-    subset = np.delete(subset, deleteIdx, axis=0)
-
-    return subset,candidate
+    # deleteIdx = []
+    # keepIdx=[]
+    # for i in range(len(subset)):
+    #    if subset[i][-1] < hp.min_limb_num or subset[i][-2]/subset[i][-1] < hp.min_avg_score:
+    #       if 
+    #       deleteIdx.append(i)
+    #   else:keepIdx.append(i)
+    # subset = np.delete(subset, deleteIdx, axis=0)
+    return subset,candidate,rrs
                     
         
 
